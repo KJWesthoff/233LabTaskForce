@@ -1,0 +1,77 @@
+Metadata-Version: 2.1
+Name: import-ipynb
+Version: 0.2
+Summary: Imports A.ipynb into B.ipynb
+Home-page: https://github.com/axil/import-ipynb
+Author: Lev Maximov
+Author-email: lev.maximov@gmail.com
+License: BSD
+Keywords: ipynb import jupyter notebook
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Developers
+Classifier: Topic :: Software Development :: Build Tools
+Classifier: License :: OSI Approved :: BSD License
+Classifier: Programming Language :: Python :: 2
+Classifier: Programming Language :: Python :: 2.7
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.3
+Classifier: Programming Language :: Python :: 3.4
+Classifier: Programming Language :: Python :: 3.5
+Classifier: Programming Language :: Python :: 3.6
+Classifier: Programming Language :: Python :: 3.7
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+License-File: LICENSE.txt
+Requires-Dist: IPython
+Requires-Dist: nbformat
+
+Motivation
+----------
+
+Suppose you want to import the contents of A.ipynb into B.ipynb.
+
+Installation
+------------
+
+.. code:: bash
+
+    pip install import-ipynb
+
+How to use
+----------
+
+Place both ipynb files in the same directory. Then, in the B.ipynb:
+
+.. code:: python
+
+    import import_ipynb
+    import A
+
+Congratulations! You can now run any functions defined in A.ipynb from
+B.ipynb!
+
+How it works
+------------
+
+The code within import\_ipynb.py defines a "notebook loader" that allows
+you to 'import' other ipynb files into your current ipynb file. This
+entails:
+
+1. load the notebook document into memory
+2. create an empty Module
+3. execute every cell in the Module namespace
+
+Note that since every cell in the A.ipynb is executed when you import
+the the file, A.ipynb should only contain classes and function
+definitions (otherwise you'll end up loading all variables and data into
+memory).
+
+Credits
+-------
+
+The code within imoprt\_ipynb.py comes from
+http://jupyter-notebook.readthedocs.io/en/latest/examples/Notebook/Importing%20Notebooks.html.
+
+Riley F. Edmunds (@rileyedmunds) wrote instructions on how to use it
+and Lev Maximov (@axil) packaged it.

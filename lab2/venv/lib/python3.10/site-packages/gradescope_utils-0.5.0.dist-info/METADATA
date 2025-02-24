@@ -1,0 +1,60 @@
+Metadata-Version: 2.1
+Name: gradescope-utils
+Version: 0.5.0
+Summary: Utilities for building Gradescope autograders
+Home-page: https://github.com/gradescope/gradescope-utils
+Author: Ibrahim Awwal
+Author-email: ibrahim@gradescope.com
+License: MIT
+Keywords: gradescope http service
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Developers
+Classifier: Topic :: Software Development :: Build Tools
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 2
+Classifier: Programming Language :: Python :: 2.6
+Classifier: Programming Language :: Python :: 2.7
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.3
+Classifier: Programming Language :: Python :: 3.4
+Classifier: Programming Language :: Python :: 3.5
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Provides-Extra: dev
+Requires-Dist: check-manifest ; extra == 'dev'
+Provides-Extra: test
+Requires-Dist: coverage ; extra == 'test'
+
+# Gradescope Python Utilities
+
+[![PyPI version](https://badge.fury.io/py/gradescope-utils.svg)](https://badge.fury.io/py/gradescope-utils)
+[![Documentation Status](https://readthedocs.org/projects/gradescope-utils/badge/?version=latest)](https://gradescope-utils.readthedocs.io/en/latest/?badge=latest)
+
+## Installing
+
+Make sure you have pip installed (eg. on Debian/Ubuntu, `apt-get install python-pip`).
+
+Then, run `pip install gradescope-utils`
+
+## Packages
+
+- [Autograder Utilities](/gradescope_utils/autograder_utils)
+
+## Changelog
+
+See the [Releases](https://github.com/gradescope/gradescope-utils/releases) page.
+
+## Releasing new versions
+
+Follow https://packaging.python.org/tutorials/packaging-projects/, but in brief:
+
+1. Bump the version in setup.py
+2. Draft a release on https://github.com/gradescope/gradescope-utils/releases
+  - This can take care of tagging for you. Otherwise, tag the commit: `git tag vX.Y.Z COMMIT_SHA`
+  - Make sure that the setup.py version matches the release/tag version
+  - GitHub releases can help auto-generate release notes from merged PRs. Edit these as necessary.
+3. Publish the release on GitHub. GitHub Actions will build and publish a new release when a version is tagged (e.g. when a GitHub release is published).
+
+## Support
+
+Contact us at [help@gradescope.com](mailto:help@gradescope.com) if you need help with these packages.
