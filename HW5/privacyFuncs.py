@@ -3,7 +3,7 @@ from operator import eq
 
 import numpy as np
 import pandas as pd
-from pandas._config import display
+from pd._config import display
 
 
 def get_equivalence_classes(df, quasi_identifiers):
@@ -285,7 +285,7 @@ def delta_presence(df_identities, df_delta, quasi_identifiers):
         ##print(f'EC:{ec} ')
         
         # Check if EC exists in df_delta and calculate ping
-        ping = delta_ECs.get(ec, 0)  # Use pandas get to find the same EC in the delta'ed DataDrame, Default to 0 if EC is not in there
+        ping = delta_ECs.get(ec, 0)  # Use pd get to find the same EC in the delta'ed DataDrame, Default to 0 if EC is not in there
         pong = len(items)
         delta = ping / pong
         
@@ -298,7 +298,127 @@ def delta_presence(df_identities, df_delta, quasi_identifiers):
     return out, deltas
 
 
+def Mondrian_allowable_dims(table_partition, quasi_identifiers, k, cut_choice_fcn):
+    """A helper function that determines the list of dimensions with allowable cuts.
+    
+    Parameters
+    ----------
+    table_partition : pd.DataFrame
+        The partition on which to determine the dimensions with allowable cuts
+    quasi_identifiers : list
+        A list containing the set of quasi-identifiers (or dimensions)
+    k : int
+        The desired k
+    cut_choice_fcn : types.FunctionType (lambda data, k: number)
+        A function pointer to the cut value selection strategy
+    
+    Returns
+    -------
+    allowable_dims : list
+        A list containing the set of dimensions with allowable cuts.
+    """
+    
+    # We don't know which dimensions will have allowable cuts yet, so we initialize allowable_dims to an empty list
+    allowable_dims = []
+    for dim_name in quasi_identifiers:
+        # For this dimension, the values are
+        dim_values = table_partition.loc[:,dim_name]
+        # and the cut value is
+        dim_boundry_cut = cut_choice_fcn(dim_values.to_list(), k)
+        lhs = table_partition.loc[table_partition.loc[:,dim_name] <= dim_boundry_cut,:]
+        rhs = table_partition.loc[table_partition.loc[:,dim_name] > dim_boundry_cut,:]
+        if lhs.shape[0] >= k and rhs.shape[0] >= k:
+            allowable_dims.append(dim_name)
+    return allowable_dims
 
+def Mondrian(table_in, quasi_identifiers, k, dim_choice_fcn, cut_choice_fcn):
+    """The Mondrian algorithm implementation.
+    
+    Parameters
+    ----------
+    table_in : pd.DataFrame
+        The input table to be generalized
+    k : int
+        The desired k
+    dim_choice_fcn : types.FunctionType (lambda partition, allowable_dims: string)
+        A function pointer to the dimension selection strategy
+    cut_choice_fcn : types.FunctionType (lambda data, k: number)
+        A function pointer to the cut value selection strategy
+    
+    Returns
+    -------
+    table_out : pd.DataFrame
+        The generalized k-Anonymous table
+    partition_boundaries : pd.DataFrame
+        A dataframe describing for each partition:
+            - the partition boundaries for each quasi-identifier (minimum, maximum), and
+            - the partition's final k value
+    
+    Raises
+    ------
+    Exception
+        If table_in cannot be made k-Anonymous.
+    """
+    
+    if table_in.shape[0] < k:
+        # Impossible, we can't achieve k-Anonymity, there aren't enough
+        # rows in the table!
+        raise Exception('It is impossible to k-Anonymize the input table. There are fewer than k rows in the provided table')
+    allowable_dims = Mondrian_allowable_dims(table_in, quasi_identifiers, k, cut_choice_fcn)
+    if len(allowable_dims) == 0:
+        # In this case, there are no more allowable cuts for this partition.
+        # Go through the different attributes and change their values by the boundaries of the partition (i.e., sanitize).
+        nr_dims = len(quasi_identifiers)
+        # initialize the partitiens table
+        partition_boundaries = pd.DataFrame(index=numpy.arange(1), columns=quasi_identifiers + ['k'])
+        # get the number of rows for the output table
+        nr_rows = table_in.shape[0]
+        # initialize the output table
+        table_out = pd.DataFrame(index=table_in.index, columns=table_in.columns)
+        # In the output table, set the values of the quasi identifiers according to the partition boundaries
+        for dim_name in quasi_identifiers:
+            # find the boundaries
+            curr_boundaries = (min(table_in.loc[:,dim_name]), max(table_in.loc[:,dim_name]))
+            # set the boundries of this dimension in the output variable
+            partition_boundaries.loc[:,dim_name] = [curr_boundaries]
+            # and set all values of this column to the boundaries in the output table
+            # display(numpy.tile(partition_boundaries.loc[:,dim_name],(nr_rows,1)))
+            table_out.loc[:,dim_name] = [curr_boundaries]
+            
+        # Now that we've worked all quasi-identifiers, we need to copy the values of the sensitive attributes (untouched).
+        for dim_name in table_in.columns.difference(quasi_identifiers):
+            table_out.loc[:,dim_name] = table_in.loc[:,dim_name]
+        # # Package partition boundaries in a list (to prepare it to be appended to other partition boundaries later)
+        # partition_boundaries = [partition_boundaries]
+        # finally, the output k for this table is the size of the table
+        partition_boundaries.loc[:,'k'] = [table_out.shape[0]]
+    else:
+        # In this case, there is at least one dimension with an allowable cut.
+        # Choose a dimension according to our dimension choice function.
+        dim = dim_choice_fcn(table_in, allowable_dims)
+        
+        # Now we calculate the cut value
+        dim_boundry_values = table_in.loc[:,dim]
+        dim_boundry_cut = cut_choice_fcn(dim_boundry_values.to_list(), k)
+        
+        # The left hand side cut
+        lhs = table_in.loc[table_in.loc[:,dim] <= dim_boundry_cut,:]
+        lhs_out, lhs_boundaries = Mondrian(lhs, quasi_identifiers, k, dim_choice_fcn, cut_choice_fcn)
+        
+        # The right hand side cut
+        rhs = table_in.loc[table_in.loc[:,dim] > dim_boundry_cut,:]
+        rhs_out, rhs_boundaries = Mondrian(rhs, quasi_identifiers, k, dim_choice_fcn, cut_choice_fcn)
+        
+        # Combine the partitions
+        table_out = pd.concat([lhs_out, rhs_out])
+        
+        # Combine the boundaries definitions
+        partition_boundaries = pd.concat([lhs_boundaries, rhs_boundaries])
+             
+    # Sorting is unnecessary in practice, but doing it so that the results are more easily examinable
+    table_out = table_out.sort_values(by=quasi_identifiers).reset_index(drop=True)
+    partition_boundaries = partition_boundaries.sort_values(by=quasi_identifiers).reset_index(drop=True)
+    return table_out, partition_boundaries
 
 
 
