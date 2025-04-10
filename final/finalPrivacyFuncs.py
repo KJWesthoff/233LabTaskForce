@@ -679,13 +679,15 @@ def Mondrian_choose_cut_first_split_l_diversity(data, sensitive_values, l):
     dimension : string
         The name of the quasi-identifier (or dimension) for the chosen cut. Otherwise, numpy.nan
     """
-    # Loop through from first row and keep track of a set of values from the sensitive attribute
+    # We need at least 2l rows for l-diversity
     if len(data) < 2 * l:
         return np.nan
     
+    # Create a list of tuples of (dim value, sensitive value) and sort by dim value
     pairs = [(data[i], sensitive_values[i]) for i in range(len(data))]
     sorted_pairs = sorted(pairs, key=lambda x: x[0])
 
+    # Traverse tuples until we have l distinct values
     i = 0
     sensitives_so_far = []
     while i < len(sorted_pairs):
@@ -695,20 +697,19 @@ def Mondrian_choose_cut_first_split_l_diversity(data, sensitive_values, l):
             break
         i += 1
 
-    # print(sorted_pairs)
-    # print(cut_value, i)
-
+    # Continue traverse until we clear the attribute cut
     while i < len(sorted_pairs):
         if sorted_pairs[i][0] != cut_value:
             break
         i += 1
 
-    # print(i)
-
+    # Ensure the right side also has l distinct values
     rhs_distincts = len(set([x[1] for x in sorted_pairs[i:]]))
     # print(f'{rhs_distincts=}')
     if rhs_distincts < l:
         return np.nan
+
+    # If so, return the cut value
     return cut_value
 
 
