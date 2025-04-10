@@ -428,7 +428,7 @@ def Mondrian(table_in, quasi_identifiers, k, dim_choice_fcn, cut_choice_fcn):
     return table_out, partition_boundaries
 
 
-def Mondrian_choose_cut_first_split(data,k):
+def Mondrian_choose_cut_first_split(data, k):
     """
     A cut value choice function choosing the smallest value that permits both partitions to be size at least k.
     
@@ -505,7 +505,222 @@ def discernability_cost(ecs):
   return np.sum(sqrs)
 
 
+################
+# L-DIVERSITY MONDRIAN VERSIONS
+################
+
+
+def Mondrian_allowable_dims_l_diversity(table_partition, quasi_identifiers, sensitive_attr, l, cut_choice_fcn):
+    """A helper function that determines the list of dimensions with allowable cuts.
+    
+    Parameters
+    ----------
+    table_partition : pd.DataFrame
+        The partition on which to determine the dimensions with allowable cuts
+    quasi_identifiers : list
+        A list containing the set of quasi-identifiers (or dimensions)
+    sensitive_attr : str
+        The name of the sensitive attribute (column of the table)
+    l : int
+        The desired l
+    cut_choice_fcn : types.FunctionType (lambda data, sensitive_attr: str, l: number)
+        A function pointer to the cut value selection strategy
+    
+    Returns
+    -------
+    allowable_dims : list
+        A list containing the set of dimensions with allowable cuts.
+    """
+    
+    # We don't know which dimensions will have allowable cuts yet, so we initialize allowable_dims to an empty list
+    allowable_dims = []
+    sensitive_values = table_partition.loc[:, sensitive_attr]
+
+    for dim_name in quasi_identifiers:
+        # For this dimension, the values are
+        dim_values = table_partition.loc[:,dim_name]
+        # and the cut value is
+        dim_boundry_cut = cut_choice_fcn(dim_values.to_list(), sensitive_values.to_list(), l)
+        lhs = table_partition.loc[table_partition.loc[:,dim_name] <= dim_boundry_cut,:]
+        rhs = table_partition.loc[table_partition.loc[:,dim_name] > dim_boundry_cut,:]
+
+        # Get the number of distinct values for the sensitive attribute based on the dim
+        distinct_ls_lhs = lhs.groupby(quasi_identifiers)[sensitive_attr].nunique()
+        distinct_ls_rhs = rhs.groupby(quasi_identifiers)[sensitive_attr].nunique()
+
+        # if lhs.shape[0] >= l and rhs.shape[0] >= l:
+        if distinct_l_diversity >= l and distinct_ls_rhs >= l:
+            allowable_dims.append(dim_name)
+    return allowable_dims
+
+
+def Mondrian_l_diversity(table_in, quasi_identifiers, sensitive_attr, l, dim_choice_fcn, cut_choice_fcn):
+    """The Mondrian algorithm implementation.
+    
+    Parameters
+    ----------
+    table_in : pd.DataFrame
+        The input table to be generalized
+    quasi_identifiers : list
+        The names of the quasi-identifiers for the table
+    sensitive_attr : str
+        The name of the sensitive attribute of the table
+    l : int
+        The desired value of l for distinct l-diversity
+    dim_choice_fcn : types.FunctionType (lambda partition, allowable_dims: string)
+        A function pointer to the dimension selection strategy
+    cut_choice_fcn : types.FunctionType (lambda data, k: number)
+        A function pointer to the cut value selection strategy
+    
+    Returns
+    -------
+    table_out : pd.DataFrame
+        The generalized l-Diverse table
+    partition_boundaries : pd.DataFrame
+        A dataframe describing for each partition:
+            - the partition boundaries for each quasi-identifier (minmax for numerical and set for strings), and
+            - the partition's final l value
+    
+    Raises
+    ------
+    Exception
+        If table_in cannot be made l-Diverse.
+    """
+    
+    if table_in.shape[0] < l:
+        # Impossible, we can't achieve l-Diversity, there aren't enough
+        # rows in the table!
+        raise Exception('It is impossible to l-Diversify the input table. There are fewer than l rows in the provided table.')
+    allowable_dims = Mondrian_allowable_dims_l_diversity(table_in, quasi_identifiers,
+                                                         sensitive_attr, l, cut_choice_fcn)
+    if len(allowable_dims) == 0:
+        # In this case, there are no more allowable cuts for this partition.
+        # Go through the different attributes and change their values by the boundaries of the partition (i.e., sanitize).
+        nr_dims = len(quasi_identifiers)
+        # initialize the partitions table
+        partition_boundaries = pd.DataFrame(index=np.arange(1), columns=quasi_identifiers + ['k'])
+        # get the number of rows for the output table
+        nr_rows = table_in.shape[0]
+        # initialize the output table
+        table_out = pd.DataFrame(index=table_in.index, columns=table_in.columns)
+        # In the output table, set the values of the quasi identifiers according to the partition boundaries
+        for dim_name in quasi_identifiers:
+            # find the boundaries
+            ####################
+            # If the attribute values are strings rather than numerical, we want the boundaries to include
+            # all the values rather than the min and max.
+            if len(table_in.loc[:,dim_name]) and isinstance(table_in.loc[:,dim_name].iloc[0], str):
+                curr_boundaries = tuple(set(table_in.loc[:,dim_name]))
+            else:
+                curr_boundaries = (min(table_in.loc[:,dim_name]), max(table_in.loc[:,dim_name]))
+            ####################
+            # set the boundries of this dimension in the output variable
+            partition_boundaries.loc[:,dim_name] = [curr_boundaries]
+            # and set all values of this column to the boundaries in the output table
+            # display(numpy.tile(partition_boundaries.loc[:,dim_name],(nr_rows,1)))
+            table_out.loc[:,dim_name] = [curr_boundaries]
+            
+        # Now that we've worked all quasi-identifiers, we need to copy the values of the sensitive attributes (untouched).
+        for dim_name in table_in.columns.difference(quasi_identifiers):
+            table_out.loc[:,dim_name] = table_in.loc[:,dim_name]
+        # # Package partition boundaries in a list (to prepare it to be appended to other partition boundaries later)
+        # partition_boundaries = [partition_boundaries]
+        # finally, the output k for this table is the size of the table
+        partition_boundaries.loc[:,'k'] = [table_out.shape[0]]
+    else:
+        # In this case, there is at least one dimension with an allowable cut.
+        # Choose a dimension according to our dimension choice function.
+        dim = dim_choice_fcn(table_in, allowable_dims)
+        
+        # Now we calculate the cut value
+        dim_boundry_values = table_in.loc[:,dim]
+        dim_boundry_cut = cut_choice_fcn(dim_boundry_values.to_list(), sensitive_attr, l)
+        
+        # The left hand side cut
+        lhs = table_in.loc[table_in.loc[:,dim] <= dim_boundry_cut,:]
+        lhs_out, lhs_boundaries = Mondrian_l_diversity(lhs, quasi_identifiers, sensitive_attr,
+                                                       l, dim_choice_fcn, cut_choice_fcn)
+        
+        # The right hand side cut
+        rhs = table_in.loc[table_in.loc[:,dim] > dim_boundry_cut,:]
+        rhs_out, rhs_boundaries = Mondrian_l_diversity(rhs, quasi_identifiers, sensitive_attr,
+                                                       l, dim_choice_fcn, cut_choice_fcn)
+        
+        # Combine the partitions
+        table_out = pd.concat([lhs_out, rhs_out])
+        
+        # Combine the boundaries definitions
+        partition_boundaries = pd.concat([lhs_boundaries, rhs_boundaries])
+             
+    # Sorting is unnecessary in practice, but doing it so that the results are more easily examinable
+    table_out = table_out.sort_values(by=quasi_identifiers).reset_index(drop=True)
+    partition_boundaries = partition_boundaries.sort_values(by=quasi_identifiers).reset_index(drop=True)
+    return table_out, partition_boundaries
+
+
+def Mondrian_choose_cut_first_split_l_diversity(data, sensitive_values, l):
+    """
+    A cut value choice function choosing the smallest value that permits both partitions to be size at least k.
+    
+    Parameters
+    ----------
+    data : list
+        A list containing the values of the chosen dimension from the current partition. This is not a DataFrame,
+        this is a list of the values from the chosen column only. That is, in your implementation you may assume that the format
+        of this argument is a list of values taken from the column chosen by the dimension choice function.
+        E.g., [94705, 94708, 94720, 94708, 94705].
+    sensitive_values : list
+        A list of the values of the sensitive attribute from the current partition, in the same order as `data`.
+    l : int
+        The desired l value.
+    
+    Returns
+    -------
+    dimension : string
+        The name of the quasi-identifier (or dimension) for the chosen cut. Otherwise, numpy.nan
+    """
+    # Loop through from first row and keep track of a set of values from the sensitive attribute
+    if len(data) < 2 * l:
+        return np.nan
+    
+    pairs = [(data[i], sensitive_values[i]) for i in range(len(data))]
+    sorted_pairs = sorted(pairs, key=lambda x: x[0])
+
+    i = 0
+    sensitives_so_far = []
+    while i < len(sorted_pairs):
+        sensitives_so_far.append(sorted_pairs[i][1])
+        if len(set(sensitives_so_far)) >= l:
+            cut_value = sorted_pairs[i][0]
+            break
+        i += 1
+
+    print(sorted_pairs)
+    # print(cut_value, i)
+
+    while i < len(sorted_pairs):
+        if sorted_pairs[i][0] != cut_value:
+            break
+        i += 1
+
+    # print(i)
+
+    rhs_distincts = len(set([x[1] for x in sorted_pairs[i:]]))
+    print(f'{rhs_distincts=}')
+    if rhs_distincts < l:
+        return np.nan
+    return cut_value
+
+
+def tests():
+    ages = [20, 23, 25, 37, 48]
+    incomes = [20, 20, 20, 100, 120]
+    l = 2
+    print(Mondrian_choose_cut_first_split_l_diversity(ages, incomes, l))
+
+
+
 if __name__ == "__main__":
     # Sample dataset
-    pass 
+    tests()
 
