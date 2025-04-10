@@ -732,6 +732,16 @@ def tests():
     l = 2
     assert np.isnan(Mondrian_choose_cut_first_split_l_diversity(ages, incomes, l))
 
+    ages = [20, 23, 25, 25, 37, 48]
+    gender = ['M', 'F', 'F', 'F', 'M', 'M']
+    l = 2
+    assert Mondrian_choose_cut_first_split_l_diversity(ages, gender, l) == 23
+
+    gender = ['F', 'F', 'F', 'M', 'M', 'M']
+    ages = [23, 25, 25, 20, 37, 48]
+    l = 2
+    assert Mondrian_choose_cut_first_split_l_diversity(gender, ages, l) == 'F'
+
     print('Tests pass')
 
 
