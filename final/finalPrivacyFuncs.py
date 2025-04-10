@@ -543,13 +543,14 @@ def Mondrian_allowable_dims_l_diversity(table_partition, quasi_identifiers, sens
         dim_boundry_cut = cut_choice_fcn(dim_values.to_list(), sensitive_values.to_list(), l)
         lhs = table_partition.loc[table_partition.loc[:,dim_name] <= dim_boundry_cut,:]
         rhs = table_partition.loc[table_partition.loc[:,dim_name] > dim_boundry_cut,:]
-
+        # print(f'{lhs=}')
         # Get the number of distinct values for the sensitive attribute based on the dim
-        distinct_ls_lhs = lhs.groupby(quasi_identifiers)[sensitive_attr].nunique()
-        distinct_ls_rhs = rhs.groupby(quasi_identifiers)[sensitive_attr].nunique()
-
+        distinct_ls_lhs = lhs[sensitive_attr].nunique()
+        distinct_ls_rhs = rhs[sensitive_attr].nunique()
+        # print(f'{distinct_ls_lhs=}')
+        # print(f'{distinct_ls_rhs=}')
         # if lhs.shape[0] >= l and rhs.shape[0] >= l:
-        if distinct_l_diversity >= l and distinct_ls_rhs >= l:
+        if distinct_ls_lhs >= l and distinct_ls_rhs >= l:
             allowable_dims.append(dim_name)
     return allowable_dims
 
@@ -741,6 +742,22 @@ def tests():
     ages = [23, 25, 25, 20, 37, 48]
     l = 2
     assert Mondrian_choose_cut_first_split_l_diversity(gender, ages, l) == 'F'
+
+    # l-diversity Mondrian tests
+    file_path = "./student_depression_dataset.csv"
+    df = pd.read_csv(file_path)
+    desired_l = 3
+    qID = ['Gender', 'Age', 'City']
+    s = "CGPA"
+    
+    print(f'{distinct_l_diversity(df, qID, s)=}')
+
+    generalized_df, boundaries = Mondrian_l_diversity(df, qID, s, desired_l,
+                                                      Mondrian_choose_dim_highest_distinct,
+                                                      Mondrian_choose_cut_first_split_l_diversity)
+    
+    print(f'{distinct_l_diversity(generalized_df, qID, s)=}')
+
 
     print('Tests pass')
 
