@@ -695,7 +695,7 @@ def Mondrian_choose_cut_first_split_l_diversity(data, sensitive_values, l):
             break
         i += 1
 
-    print(sorted_pairs)
+    # print(sorted_pairs)
     # print(cut_value, i)
 
     while i < len(sorted_pairs):
@@ -706,17 +706,29 @@ def Mondrian_choose_cut_first_split_l_diversity(data, sensitive_values, l):
     # print(i)
 
     rhs_distincts = len(set([x[1] for x in sorted_pairs[i:]]))
-    print(f'{rhs_distincts=}')
+    # print(f'{rhs_distincts=}')
     if rhs_distincts < l:
         return np.nan
     return cut_value
 
 
 def tests():
-    ages = [20, 23, 25, 37, 48]
-    incomes = [20, 20, 20, 100, 120]
+    ages = [20, 23, 25, 25, 37, 48]
+    incomes = [20, 30, 45, 65, 100, 120]
     l = 2
-    print(Mondrian_choose_cut_first_split_l_diversity(ages, incomes, l))
+    assert Mondrian_choose_cut_first_split_l_diversity(ages, incomes, l) == 23
+
+    ages = [20, 23, 25, 25, 37, 48]
+    incomes = [20, 20, 45, 65, 100, 120]
+    l = 2
+    assert Mondrian_choose_cut_first_split_l_diversity(ages, incomes, l) == 25
+
+    ages = [20, 23, 25, 25, 37, 48]
+    incomes = [20, 20, 45, 65, 100, 100]
+    l = 2
+    assert np.isnan(Mondrian_choose_cut_first_split_l_diversity(ages, incomes, l))
+
+    print('Tests pass')
 
 
 
