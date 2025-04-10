@@ -569,7 +569,7 @@ def Mondrian_l_diversity(table_in, quasi_identifiers, sensitive_attr, l, dim_cho
         The desired value of l for distinct l-diversity
     dim_choice_fcn : types.FunctionType (lambda partition, allowable_dims: string)
         A function pointer to the dimension selection strategy
-    cut_choice_fcn : types.FunctionType (lambda data, k: number)
+    cut_choice_fcn : types.FunctionType (lambda data, sensitive_attr: str, l: number)
         A function pointer to the cut value selection strategy
     
     Returns
@@ -598,7 +598,7 @@ def Mondrian_l_diversity(table_in, quasi_identifiers, sensitive_attr, l, dim_cho
         # Go through the different attributes and change their values by the boundaries of the partition (i.e., sanitize).
         nr_dims = len(quasi_identifiers)
         # initialize the partitions table
-        partition_boundaries = pd.DataFrame(index=np.arange(1), columns=quasi_identifiers + ['k'])
+        partition_boundaries = pd.DataFrame(index=np.arange(1), columns=quasi_identifiers + ['l'])
         # get the number of rows for the output table
         nr_rows = table_in.shape[0]
         # initialize the output table
@@ -625,24 +625,26 @@ def Mondrian_l_diversity(table_in, quasi_identifiers, sensitive_attr, l, dim_cho
             table_out.loc[:,dim_name] = table_in.loc[:,dim_name]
         # # Package partition boundaries in a list (to prepare it to be appended to other partition boundaries later)
         # partition_boundaries = [partition_boundaries]
-        # finally, the output k for this table is the size of the table
-        partition_boundaries.loc[:,'k'] = [table_out.shape[0]]
+        # finally, the output l for this table is the number of unique values of the sensitive attribute
+        partition_boundaries.loc[:,'l'] = [table_out.loc[:, sensitive_attr].nunique()]
+        
     else:
         # In this case, there is at least one dimension with an allowable cut.
         # Choose a dimension according to our dimension choice function.
         dim = dim_choice_fcn(table_in, allowable_dims)
-        
+        sensitive_values = table_in.loc[:, sensitive_attr]
+
         # Now we calculate the cut value
-        dim_boundry_values = table_in.loc[:,dim]
-        dim_boundry_cut = cut_choice_fcn(dim_boundry_values.to_list(), sensitive_attr, l)
+        dim_boundry_values = table_in.loc[:, dim]
+        dim_boundry_cut = cut_choice_fcn(dim_boundry_values.to_list(), sensitive_values.to_list(), l)
         
         # The left hand side cut
-        lhs = table_in.loc[table_in.loc[:,dim] <= dim_boundry_cut,:]
+        lhs = table_in.loc[table_in.loc[:, dim] <= dim_boundry_cut,:]
         lhs_out, lhs_boundaries = Mondrian_l_diversity(lhs, quasi_identifiers, sensitive_attr,
                                                        l, dim_choice_fcn, cut_choice_fcn)
         
         # The right hand side cut
-        rhs = table_in.loc[table_in.loc[:,dim] > dim_boundry_cut,:]
+        rhs = table_in.loc[table_in.loc[:, dim] > dim_boundry_cut,:]
         rhs_out, rhs_boundaries = Mondrian_l_diversity(rhs, quasi_identifiers, sensitive_attr,
                                                        l, dim_choice_fcn, cut_choice_fcn)
         
@@ -660,7 +662,7 @@ def Mondrian_l_diversity(table_in, quasi_identifiers, sensitive_attr, l, dim_cho
 
 def Mondrian_choose_cut_first_split_l_diversity(data, sensitive_values, l):
     """
-    A cut value choice function choosing the smallest value that permits both partitions to be size at least k.
+    A cut value choice function choosing the smallest value that permits both partitions to satisfy l-diversity.
     
     Parameters
     ----------
@@ -714,6 +716,7 @@ def Mondrian_choose_cut_first_split_l_diversity(data, sensitive_values, l):
 
 
 def tests():
+    # l-diversity cut first split tests
     ages = [20, 23, 25, 25, 37, 48]
     incomes = [20, 30, 45, 65, 100, 120]
     l = 2
