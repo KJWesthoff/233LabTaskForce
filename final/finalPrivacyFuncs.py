@@ -498,9 +498,8 @@ def Mondrian_choose_dim_highest_distinct(table_partition, allowable_dims):
     return best_dimension
 
 
-def discernability_cost(ecs):
-  k = 'count'
-  sqrs = ecs[k] ** 2
+def discernability_cost(ecs, metric='count'):
+  sqrs = ecs[metric] ** 2
   return np.sum(sqrs)
 
 
