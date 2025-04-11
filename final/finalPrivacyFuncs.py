@@ -53,11 +53,10 @@ def distinct_l_diversity(df, quasi_identifiers, sensitive_attribute):
         integer: score for distinct l-diversity.
         pd.DataFrame: Grouped data with distinct value counts.
     """
-    
     ## Group the df sequentially by the quasi identifiers, then select the sensitive attribute and count how many unique values it has
     diversity_scores = df.groupby(quasi_identifiers)[sensitive_attribute].nunique() 
     distinct_l = diversity_scores.min()
-    result_df = diversity_scores.reset_index(name=f"n unique {sensitive_attribute}")
+    result_df = diversity_scores.reset_index(name=f"l ({sensitive_attribute})")
     return distinct_l, result_df
 
 
@@ -591,7 +590,10 @@ def Mondrian_l_diversity(table_in, quasi_identifiers, sensitive_attr, l, dim_cho
     if table_in.shape[0] < l:
         # Impossible, we can't achieve l-Diversity, there aren't enough
         # rows in the table!
-        raise Exception('It is impossible to l-Diversify the input table. There are fewer than l rows in the provided table.')
+        raise Exception(f'It is impossible to l-Diversify the input table. There are only {table_in.shape[0]} rows in the provided table.')
+    if table_in.loc[:, sensitive_attr].nunique() < l:
+        raise Exception(f'It is impossible to l-Diversify the input table. There are only {table_in.loc[:, sensitive_attr].nunique()} distinct values for the quasi-identifiers {quasi_identifiers} and sensitive attribute {sensitive_attr}.')
+
     allowable_dims = Mondrian_allowable_dims_l_diversity(table_in, quasi_identifiers,
                                                          sensitive_attr, l, cut_choice_fcn)
     if len(allowable_dims) == 0:
